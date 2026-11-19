@@ -1,0 +1,9 @@
+I want to build a platform mvp. The first golden path is an S3 template that takes code from GitHub and then passses it internally through the platform until a live link is gotten. 
+
+My aims are:
+1) Understanding how platform works
+2) Understanding the configuratioin used in writing the declarative templates (Yaml)
+3) I want to understand the intoto of platform engineering using AI to write code 
+
+Before we begin anything, i want you to tell me:
+1) What code will the platform be written in this also include the golden path. tell me why they were chosen, and tell me what other options are available.

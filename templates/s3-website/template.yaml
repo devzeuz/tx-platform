@@ -1,0 +1,81 @@
+apiVersion: platform.tx/v1alpha1
+kind: GoldenPathTemplate
+
+# ------------------------------------------------------------------------------
+# 1. Template Identity
+# ------------------------------------------------------------------------------
+metadata:
+  id: s3-website
+  name: "Static Website on AWS S3"
+  description: "A pre-paved highway (Golden Path) to take code from GitHub and publish it as a live website on AWS S3."
+  version: "1.0.0"
+
+# ------------------------------------------------------------------------------
+# 2. What Goes In (Inputs / Parameters)
+# These are the questions the platform asks the developer when they run this path.
+# ------------------------------------------------------------------------------
+parameters:
+  - id: repo_url
+    title: "GitHub Repository URL"
+    type: string
+    description: "The web address of your code repository on GitHub"
+    required: true
+
+  - id: app_name
+    title: "Application Name"
+    type: string
+    description: "A unique name used to name your cloud storage locker (only lowercase letters, numbers, and dashes)"
+    required: true
+
+  - id: aws_region
+    title: "AWS Region"
+    type: string
+    description: "The cloud data center location where your site will be hosted"
+    default: "us-east-1"
+    required: false
+
+  - id: build_output_dir
+    title: "Website Files Directory"
+    type: string
+    description: "The folder in your repo containing index.html (use '.' if files are in the root)"
+    default: "."
+    required: false
+
+# ------------------------------------------------------------------------------
+# 3. What The System Does (Execution Steps)
+# The conveyor belt stations that run sequentially to turn code into a live site.
+# ------------------------------------------------------------------------------
+steps:
+  - id: clone_repo
+    name: "Download Code"
+    action: "git:clone"
+    description: "Pulls a fresh copy of your code files from GitHub"
+
+  - id: provision_infra
+    name: "Set Up Cloud Storage"
+    action: "terraform:apply"
+    description: "Runs the infrastructure blueprint to create and configure the S3 website bucket"
+    config:
+      module_path: "terraform"
+      inputs:
+        bucket_name: "${{ parameters.app_name }}"
+        aws_region: "${{ parameters.aws_region }}"
+
+  - id: deploy_files
+    name: "Upload Website Files"
+    action: "aws:s3-sync"
+    description: "Copies the HTML, CSS, and script files into the cloud storage bucket"
+    config:
+      source_dir: "${{ steps.clone_repo.output_dir }}/${{ parameters.build_output_dir }}"
+      target_bucket: "${{ steps.provision_infra.outputs.bucket_name }}"
+
+# ------------------------------------------------------------------------------
+# 4. What Comes Out (Outputs)
+# The final result handed back to the developer.
+# ------------------------------------------------------------------------------
+outputs:
+  live_url:
+    title: "Live Website Link"
+    value: "${{ steps.provision_infra.outputs.website_url }}"
+    description: "The public web address where anyone can see your website"
+

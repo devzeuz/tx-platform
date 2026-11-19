@@ -1,0 +1,135 @@
+name: "Deploy S3 Golden Path"
+
+# ==============================================================================
+# WHAT GOES IN (Trigger & Inputs)
+# This workflow waits on standby until our Platform Control Plane presses "Go"
+# (or until someone clicks "Run workflow" manually inside GitHub).
+# These 4 inputs match the `parameters:` section in templates/s3-website/template.yaml.
+# ==============================================================================
+on:
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: "Web address of the developer's GitHub repository"
+        required: true
+        type: string
+      app_name:
+        description: "Unique lowercase name for the cloud storage locker (S3 bucket)"
+        required: true
+        type: string
+      aws_region:
+        description: "AWS data center location where the website will live"
+        required: false
+        default: "us-east-1"
+        type: string
+      build_output_dir:
+        description: "Folder inside the developer's repo holding index.html ('.' for root)"
+        required: false
+        default: "."
+        type: string
+
+# ==============================================================================
+# WHAT THE SYSTEM DOES (The Factory Conveyor Belt)
+# Runs on a fresh, disposable cloud computer (Ubuntu Linux) rented from GitHub.
+# Each step below corresponds to a station on our assembly line.
+# ==============================================================================
+jobs:
+  deploy:
+    name: "Provision S3 & Publish Website"
+    runs-on: ubuntu-latest
+
+    # Declare the final items this assembly line hands back when finished
+    outputs:
+      live_url: ${{ steps.provision_infra.outputs.website_url }}
+      bucket_name: ${{ steps.provision_infra.outputs.bucket_name }}
+
+    steps:
+      # ------------------------------------------------------------------------
+      # Station 1: Grab the Platform's Own Blueprints
+      # Copies this platform repository onto the runner so Terraform can read
+      # templates/s3-website/terraform/.
+      # ------------------------------------------------------------------------
+      - name: "Checkout Platform Blueprints"
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------------
+      # Station 2: Download Developer Code (matches `clone_repo` in template.yaml)
+      # Fetches a fresh copy of the developer's website files from GitHub into
+      # a temporary folder (/tmp/developer-repo).
+      # ------------------------------------------------------------------------
+      - name: "Download Developer Code"
+        id: clone_repo
+        run: |
+          git clone "${{ inputs.repo_url }}" /tmp/developer-repo
+
+      # ------------------------------------------------------------------------
+      # Station 3: Show Our Cloud ID Card (AWS Credentials)
+      # Signs the runner into your AWS account using secret keys stored safely
+      # in GitHub Repository Secrets (never written in plain text here).
+      # ------------------------------------------------------------------------
+      - name: "Authenticate with AWS"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+
+      # ------------------------------------------------------------------------
+      # Station 4: Install the Infrastructure Builder (Terraform)
+      # Turns off `terraform_wrapper` so `terraform output -raw` prints clean
+      # values instead of extra diagnostic text.
+      # ------------------------------------------------------------------------
+      - name: "Install Terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      # ------------------------------------------------------------------------
+      # Station 5: Set Up Cloud Storage (matches `provision_infra` in template.yaml)
+      # Runs Terraform inside templates/s3-website/terraform/ to create the
+      # S3 bucket, turn on website mode, and export the live URL for later steps.
+      # ------------------------------------------------------------------------
+      - name: "Set Up Cloud Storage"
+        id: provision_infra
+        working-directory: templates/s3-website/terraform
+        run: |
+          terraform init
+          terraform apply -auto-approve \
+            -var="bucket_name=${{ inputs.app_name }}" \
+            -var="aws_region=${{ inputs.aws_region }}"
+
+          BUCKET_NAME=$(terraform output -raw bucket_name)
+          WEBSITE_URL=$(terraform output -raw website_url)
+
+          echo "bucket_name=$BUCKET_NAME" >> "$GITHUB_OUTPUT"
+          echo "website_url=$WEBSITE_URL" >> "$GITHUB_OUTPUT"
+
+      # ------------------------------------------------------------------------
+      # Station 6: Upload Website Files (matches `deploy_files` in template.yaml)
+      # Copies the website files into the new S3 bucket, removes stale files
+      # (--delete), and skips hidden git history (--exclude ".git/*").
+      # ------------------------------------------------------------------------
+      - name: "Upload Website Files"
+        id: deploy_files
+        run: |
+          aws s3 sync "/tmp/developer-repo/${{ inputs.build_output_dir }}" \
+            "s3://${{ steps.provision_infra.outputs.bucket_name }}" \
+            --delete \
+            --exclude ".git/*"
+
+      # ------------------------------------------------------------------------
+      # WHAT COMES OUT (Station 7: Hand Back the Live Website Link)
+      # Prints the link clearly in the logs (for our Python Control Plane to
+      # read) and posts a clean summary card in the GitHub Actions UI.
+      # ------------------------------------------------------------------------
+      - name: "Output Live Website Link"
+        run: |
+          echo "LIVE_URL=${{ steps.provision_infra.outputs.website_url }}"
+          {
+            echo "## S3 Golden Path Deployment Complete"
+            echo ""
+            echo "- **Application:** \`${{ inputs.app_name }}\`"
+            echo "- **S3 Bucket:** \`${{ steps.provision_infra.outputs.bucket_name }}\`"
+            echo "- **Live Website Link:** ${{ steps.provision_infra.outputs.website_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+

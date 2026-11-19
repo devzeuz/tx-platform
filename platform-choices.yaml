@@ -1,0 +1,48 @@
+# ==============================================================================
+# Platform MVP: Architecture & Tech Stack Choices
+# ==============================================================================
+# INSTRUCTIONS:
+# For each question below, set your choice under `selected:`.
+# You can choose from the options listed under each question.
+# ==============================================================================
+
+# Question 1: Platform Control Plane & API Language
+control_plane:
+  selected: "python" # <-- Type your choice here: [typescript, python, go, backstage]
+  options:
+    typescript: "Node.js / Express or Next.js (Lightweight, transparent, aligns with Backstage & AWS SDK)"
+    python: "FastAPI / Python (Clean, quick, native AWS boto3 integration)"
+    go: "Golang (High performance, compiled binary, native cloud-native tool language)"
+    backstage: "Spotify Backstage (CNCF standard portal framework, enterprise/heavyweight)"
+
+# Question 2: Golden Path Template Configuration Format
+template_format:
+  selected: "yaml" # <-- Type your choice here: [yaml, json, cue]
+  options:
+    yaml: "YAML (Universal platform engineering standard for declarative templates)"
+    json: "JSON (Machine-friendly, lacks comments)"
+    cue: "CUE (Advanced type-safe schema and validation language)"
+
+# Question 3: Infrastructure as Code (IaC) for S3 Golden Path
+infrastructure_iac:
+  selected: "terraform" # <-- Type your choice here: [terraform, aws_sdk, pulumi, crossplane]
+  options:
+    terraform: "Terraform / OpenTofu HCL (Declarative, state-managed, industry standard)"
+    aws_sdk: "Direct AWS SDK calls (Imperative, no extra tools/CLIs to install)"
+    pulumi: "Pulumi (Define cloud infra using TypeScript or Python)"
+    crossplane: "Crossplane (Kubernetes-native cloud resource CRDs)"
+
+# Question 4: Pipeline Execution Engine (Runner Glue)
+pipeline_runner:
+  selected: "github_actions" # <-- Type your choice here: [local_worker, github_actions]
+  options:
+    local_worker: "Local Process Runner (Shell/Node/Python executing clone -> terraform -> upload locally)"
+    github_actions: "GitHub Actions (Offloads execution to GitHub cloud runners via webhooks)"
+
+# Question 5: Target S3 Deployment Environment
+target_environment:
+  selected: "real_aws" # <-- Type your choice here: [localstack, real_aws]
+  options:
+    localstack: "LocalStack (Free local AWS S3 emulator, no cloud charges or AWS credentials needed)"
+    real_aws: "Live AWS Account (Requires AWS credentials, creates real public URL on the internet)"
+

@@ -91,13 +91,27 @@ def load_templates() -> dict[str, dict[str, Any]]:
     return catalog
 
 
+def normalize_github_repo(raw_repo: str) -> str:
+    """Accept 'owner/repo' or a full GitHub repo URL and return 'owner/repo'."""
+    cleaned = raw_repo.strip()
+    for prefix in ("https://github.com/", "http://github.com/", "git@github.com:"):
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+    cleaned = cleaned.rstrip("/")
+    if cleaned.endswith(".git"):
+        cleaned = cleaned[:-4]
+    return cleaned.strip("/")
+
+
 def get_github_config() -> tuple[str | None, str | None, str]:
     """Read GitHub API settings from .env / environment variables on each request."""
     load_dotenv(BASE_DIR / ".env", override=True)
     load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
 
     token = (os.getenv("GITHUB_TOKEN") or "").strip()
-    repo = (os.getenv("GITHUB_REPO") or "").strip()
+    repo_raw = (os.getenv("GITHUB_REPO") or "").strip()
+    repo = normalize_github_repo(repo_raw) if repo_raw else ""
     branch = (os.getenv("GITHUB_BRANCH") or "main").strip() or "main"
 
     if not token or token == "ghp_your_token_here":
